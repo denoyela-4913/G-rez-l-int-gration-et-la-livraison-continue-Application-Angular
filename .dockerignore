@@ -1,0 +1,25 @@
+# Fichiers exclus du contexte de build Docker (plus rapide, et pas de fuite de fichiers inutiles).
+
+# Dépendances et sorties locales : reconstruites dans l'image (npm ci, ng build)
+node_modules
+dist
+.angular
+.npm
+
+# Historique git et fichiers d'éditeur
+.git
+.gitignore
+.vscode
+.idea
+
+# Générés localement, ne servent pas à construire l'image
+reports
+*.tgz
+npm-debug.log
+
+# Ne servent pas à construire l'image
+k8s
+Dockerfile
+.dockerignore
+docker-compose.yml
+test-results

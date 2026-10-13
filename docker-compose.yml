@@ -1,0 +1,28 @@
+# Lancement local : docker compose up -d   puis http://localhost
+# Arrêt : docker compose down
+
+services:
+
+  app:
+    # "build" : construit l'image à partir du Dockerfile à la racine (contexte = ".").
+    build: .
+    # "image" : comportement selon sa combinaison avec "build" :
+    #   - build + image -> Compose CONSTRUIT l'image et lui donne CE nom.
+    #   - image seul    -> Compose TÉLÉCHARGE l'image, il ne construit rien.
+    # Ici les deux sont présents : l'image construite s'appelle olympic-games-tracker.
+    image: olympic-games-tracker
+    # Reconstruit l'image à chaque "docker compose up" (rapide : les couches inchangées sont en cache),
+    # pour que le conteneur reflète toujours les sources.
+    pull_policy: build
+    # Port de l'hôte 80 -> port 8080 du conteneur (Nginx tourne sans root, donc sur 8080).
+    ports:
+      - "80:8080"
+    # On teste que la page d'accueil répond.
+    # wget est fourni par BusyBox dans l'image Alpine (pas de curl).
+    # 127.0.0.1 et non localhost : Nginx n'écoute qu'en IPv4.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 10s      # fréquence du test
+      timeout: 3s        # durée max d'un test
+      retries: 3         # échecs consécutifs avant "unhealthy"
+      start_period: 10s  # délai de grâce au démarrage : les échecs ne comptent pas

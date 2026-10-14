@@ -1,0 +1,20 @@
+#separator:comma
+#html:true
+#notetype:Basic
+#deck:OlympicTracker::orchestration-kubernetes-swarm
+Qu'est-ce qu'un orchestrateur de conteneurs et pourquoi en a-t-on besoin ?,"Un outil qui place, surveille, met à l'échelle et met à jour des conteneurs sur plusieurs machines. Docker ou Compose seuls gèrent une seule machine, sans autoréparation ni haute disponibilité."
+Qu'est-ce que le modèle déclaratif ?,"On décrit l'état voulu dans un fichier YAML (ex. 3 réplicas de telle image) et une boucle de contrôle compare en continu l'état réel à cet état pour corriger l'écart, au lieu d'exécuter des commandes une par une (impératif)."
+Que signifie K8s ?,"C'est une abréviation de Kubernetes : K, 8 lettres omises, puis s."
+Qu'est-ce qu'un Pod ?,"La plus petite unité déployable de Kubernetes : un ou plusieurs conteneurs qui partagent réseau et stockage. Il est éphémère, on le crée via un Deployment."
+Quel est le rôle d'un Deployment ?,"Il décrit un modèle de Pod et le nombre de réplicas voulu, et gère les mises à jour progressives et le retour arrière (rollback)."
+Quel est le rôle d'un Service Kubernetes ?,"Donner une adresse stable (et un nom DNS) devant un groupe de Pods, qui sont éphémères et changent d'adresse."
+Que signifie DNS ?,Domain Name System : le système qui traduit un nom (ex. un nom de Service) en adresse réseau.
+Comment un Service retrouve-t-il ses Pods ?,"Par les labels : le <code>selector</code> du Service doit correspondre aux labels du Pod. Ici, <code>app: olympic-games-app</code> des deux côtés."
+"Quelle est la différence entre <code>ClusterIP</code>, <code>NodePort</code> et <code>LoadBalancer</code> ?",<code>ClusterIP</code> : visible dans le cluster seulement (défaut). <code>NodePort</code> : un port ouvert sur chaque nœud. <code>LoadBalancer</code> : exposé à l'extérieur via l'équilibreur du fournisseur cloud.
+Pourquoi un Secret Kubernetes n'est-il pas forcément sûr ?,"Par défaut il est seulement encodé en base64, pas chiffré : n'importe qui avec accès en lecture peut le décoder. Il faut restreindre les droits et activer le chiffrement au repos."
+Que fait <code>docker swarm init</code> ?,"Transforme la machine en manager d'un cluster Swarm. C'est l'orchestrateur intégré à Docker, sans installation supplémentaire."
+Que signifie Raft dans Swarm ?,Un algorithme de consensus qui synchronise l'état entre les managers : le cluster reste cohérent tant que la majorité des managers est disponible.
+"Comment déploie-t-on un fichier Compose sur Swarm, et que devient la clé <code>build:</code> ?","Avec <code>docker stack deploy -c docker-compose.yml &lt;nom&gt;</code>. <code>build:</code> est ignorée : l'image doit déjà être dans un registre. La clé <code>deploy:</code> (replicas, mises à jour) n'a de sens que dans ce mode."
+Quand choisir Swarm plutôt que Kubernetes ?,"Pour un petit cluster aux besoins simples, quand on connaît déjà Compose. Kubernetes est préférable en production à grande échelle (autoscaling, écosystème, offres cloud gérées)."
+Que contiennent les manifestes <code>k8s/</code> de ce dépôt ?,"Un <code>Deployment</code> (<code>replicas: 1</code>, label <code>app: olympic-games-app</code>) et un <code>Service</code> de type <code>LoadBalancer</code>. L'image et les <code>imagePullSecrets</code> sont encore des <code>TODO</code> (registre d'images privé : GHCR, le registre de GitHub)."
+Pourquoi faut-il passer les ports <code>80</code> à <code>8080</code> dans <code>k8s/</code> ?,"L'image tourne désormais sans root, et un utilisateur non-root ne peut pas écouter sur un port inférieur à 1024. Nginx écoute sur <code>8080</code>, donc <code>containerPort</code> et <code>targetPort</code> doivent suivre."

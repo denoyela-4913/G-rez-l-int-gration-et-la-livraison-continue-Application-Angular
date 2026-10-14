@@ -73,7 +73,7 @@ R: Pour un petit cluster aux besoins simples, quand on connaît déjà Compose. 
 ---
 
 Q: Que contiennent les manifestes `k8s/` de ce dépôt ?
-R: Un `Deployment` (`replicas: 1`, label `app: olympic-games-app`) et un `Service` de type `LoadBalancer`. L'image et les `imagePullSecrets` sont encore des `TODO` (registre GitLab privé).
+R: Un `Deployment` (`replicas: 1`, label `app: olympic-games-app`) et un `Service` de type `LoadBalancer`. L'image et les `imagePullSecrets` sont encore des `TODO` (registre d'images privé : GHCR, le registre de GitHub).
 
 ---
 

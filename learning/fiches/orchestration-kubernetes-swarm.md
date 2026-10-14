@@ -92,8 +92,8 @@ par deux manifestes :
 - [service-app.yaml:12](../../k8s/service-app.yaml#L12) : `type: LoadBalancer`, pour une
   exposition à l'extérieur du cluster.
 - [deployment-app.yaml:17](../../k8s/deployment-app.yaml#L17) et
-  [:20](../../k8s/deployment-app.yaml#L20) : deux `TODO`, l'image à tirer du registre GitLab et
-  les `imagePullSecrets` pour autoriser Kubernetes à tirer une image d'un registre privé.
+  [:20](../../k8s/deployment-app.yaml#L20) : deux `TODO`, l'image à tirer d'un registre (GHCR, le registre
+  de GitHub, puisque le projet a choisi GitHub, voir la fiche sur la CI) et les `imagePullSecrets` pour autoriser Kubernetes à tirer une image d'un registre privé.
   Le gabarit [values.tpl.yaml](../../values.tpl.yaml) prévoit les variables `image`, `port` et
   `imagePullSecret` à remplir.
 - **Incohérence à corriger** : le manifeste déclare toujours le port 80

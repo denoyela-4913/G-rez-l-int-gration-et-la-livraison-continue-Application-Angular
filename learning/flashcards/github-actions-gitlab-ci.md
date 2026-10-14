@@ -72,5 +72,5 @@ R: `artifacts:reports:junit` : GitLab lit le XML nativement, sans action tierce 
 
 ---
 
-Q: Quel lien entre GitLab et les manifestes `k8s/` de ce dépôt ?
-R: Les `TODO` demandent une image tirée du registre GitLab (privé) et des `imagePullSecrets` pour autoriser Kubernetes à s'y connecter. Le registre se référence par `$CI_REGISTRY_IMAGE` dans GitLab CI.
+Q: Le projet a choisi GitHub : quel registre d'images remplace celui de GitLab visé par les `TODO` de `k8s/` ?
+R: GHCR (GitHub Container Registry, `ghcr.io/<utilisateur>/<dépôt>:<tag>`). Chez GitLab, le registre se référence par `$CI_REGISTRY_IMAGE`. Pour tirer l'image depuis Kubernetes, il faut un secret `imagePullSecrets` avec un Personal Access Token (`read:packages`), car le `GITHUB_TOKEN` expire avec le job.

@@ -6,9 +6,11 @@ et le déploiement. GitHub Actions et GitLab CI font la même chose avec des voc
 modèles d'exécution différents : le YAML (YAML Ain't Markup Language) d'un côté ne se transpose
 pas mot à mot de l'autre.
 
-> Le dépôt contient un workflow **GitHub Actions** ([ci.yml](../../.github/workflows/ci.yml)) mais
-> **aucun `.gitlab-ci.yml`**. Les parties GitLab CI sont de la théorie non vérifiée dans ce dépôt,
-> et l'exemple de transposition est une illustration, pas un fichier du projet.
+> **Choix du projet : GitHub et GitHub Actions** pour le dépôt, la CI et le registre d'images.
+> Le dépôt contient un workflow ([ci.yml](../../.github/workflows/ci.yml)) mais **aucun
+> `.gitlab-ci.yml`** : GitLab CI n'est ici qu'un **sujet de comparaison**. Ses parties sont de la
+> théorie non vérifiée dans ce dépôt, et l'exemple de transposition est une illustration, pas un
+> fichier du projet.
 
 ## Vocabulaire côte à côte
 
@@ -95,10 +97,13 @@ Le workflow [ci.yml](../../.github/workflows/ci.yml) est un exemple de GitHub Ac
 - Le script `./run-tests.sh` est le même que dans le projet Java : la logique de test est dans un
   script et non dans le YAML, donc elle se rejoue en local et reste portable d'une CI à l'autre.
 
-Le lien avec GitLab apparaît dans les manifestes Kubernetes
-([deployment-app.yaml:17](../../k8s/deployment-app.yaml#L17)) : l'image doit être tirée du
-**registre GitLab** (`TODO`), avec des `imagePullSecrets` pour un registre privé. La CI de
-l'exercice suivant aurait donc à construire et pousser l'image vers ce registre.
+Le lien avec les manifestes Kubernetes
+([deployment-app.yaml:17](../../k8s/deployment-app.yaml#L17)) : l'image doit être tirée d'un
+registre (`TODO`), avec des `imagePullSecrets` pour un registre privé. Les `TODO` parlent du
+registre GitLab, car ils viennent du modèle d'exercice ; **le projet ayant choisi GitHub**, ce
+sera **GHCR** (`ghcr.io`). Il faudra ajouter à `ci.yml` un job qui construit et pousse l'image
+(avec `permissions: packages: write`). Pour tirer l'image depuis le cluster, le `GITHUB_TOKEN`
+ne suffit pas (il expire avec le job) : il faut un Personal Access Token avec `read:packages`.
 
 ## Transposition de ce workflow vers GitLab CI (illustration)
 

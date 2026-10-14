@@ -1,0 +1,13 @@
+# Dependabot : propose des pull requests quand une action GitHub a une nouvelle version.
+# Il met à jour le SHA et le commentaire de version. Rien n'est fusionné automatiquement :
+# chaque mise à jour est relue (diff, notes de version) et validée par la CI avant fusion.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Attendre 7 jours après la publication d'une version avant de la proposer : laisse le temps
+    # à la communauté de détecter une version compromise ou défectueuse.
+    cooldown:
+      default-days: 7

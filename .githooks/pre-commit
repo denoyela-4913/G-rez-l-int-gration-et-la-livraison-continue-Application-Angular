@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Régénère les fichiers de learning/build/ quand une source de learning/ change dans le commit,
+# puis les ajoute au commit :
+#   learning/fiches/*.md et *.html -> learning/build/fiches/<nom>.pdf
+#   learning/flashcards/*.md       -> learning/build/flashcards/<nom>.csv (import Anki)
+# Activation (une fois par clone) : git config core.hooksPath .githooks
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+SOURCES='^learning/(fiches/[^/]+\.(md|html)|flashcards/[^/]+\.md)$'
+
+# Fichier généré correspondant à une source.
+built() {
+  case "$1" in
+    learning/flashcards/*) echo "learning/build/flashcards/$(basename "${1%.*}").csv" ;;
+    *) echo "learning/build/fiches/$(basename "${1%.*}").pdf" ;;
+  esac
+}
+
+# build.sh, anki_csv.py ou style.css modifiés : tout est à régénérer.
+if git diff --cached --name-only | grep -qE '^learning/(build\.sh|anki_csv\.py|style\.css)$'; then
+  learning/build.sh
+  git add learning/build/fiches/*.pdf learning/build/flashcards/*.csv
+  exit 0
+fi
+
+changed=$(git diff --cached --name-only --diff-filter=ACM | grep -E "$SOURCES" || true)
+deleted=$(git diff --cached --name-only --diff-filter=D | grep -E "$SOURCES" || true)
+
+if [ -n "$changed" ]; then
+  # shellcheck disable=SC2086
+  learning/build.sh $changed
+  for f in $changed; do
+    git add "$(built "$f")"
+  done
+fi
+
+for f in $deleted; do
+  git rm -q -f --ignore-unmatch "$(built "$f")"
+done

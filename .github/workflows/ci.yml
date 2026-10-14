@@ -1,0 +1,54 @@
+# Pipeline CI : exécute les tests unitaires via ./run-tests.sh et publie le rapport JUnit.
+# Le même script run-tests.sh et le même chemin de rapport (test-results/xml/) sont utilisés
+# dans le projet Java : seule l'étape d'installation de l'environnement diffère.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Droits minimaux du GITHUB_TOKEN. "checks: write" permet de publier le rapport de tests
+# dans l'onglet Checks de la pull request / du commit.
+permissions:
+  contents: read
+  checks: write
+
+# Une nouvelle exécution sur la même branche annule la précédente encore en cours.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Angular 20 demande Node ^20.19, ^22.12 ou ^24 (le README indique 20.11, trop ancien).
+      - name: Installer Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm # cache du dossier ~/.npm, clé basée sur package-lock.json
+
+      # node_modules est absent sur le runner : run-tests.sh lance "npm ci" (installation
+      # reproductible), puis les tests avec Chrome headless (préinstallé sur ubuntu-latest).
+      - name: Exécuter les tests
+        run: ./run-tests.sh
+
+      # if: always() : le rapport est publié même si les tests échouent (c'est là qu'on en a besoin).
+      - name: Publier le rapport de tests
+        if: always()
+        # Action tierce : fixée sur le SHA du commit (tag v6.6.1), car un tag peut être déplacé.
+        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
+        with:
+          report_paths: test-results/xml/*.xml # JUnit XML (Gradle et Karma)
+          check_name: Rapport de tests
+
+      - name: Conserver les rapports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: warn

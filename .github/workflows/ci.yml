@@ -1,4 +1,5 @@
-# Pipeline CI : exécute les tests unitaires via ./run-tests.sh et publie le rapport JUnit.
+# Pipeline CI : exécute les tests unitaires via ./run-tests.sh et publie le rapport JUnit, puis
+# (sur push) construit l'image Docker, la teste et la publie sur GHCR (GitHub Container Registry).
 # Le même script run-tests.sh et le même chemin de rapport (test-results/xml/) sont utilisés
 # dans le projet Java : seule l'étape d'installation de l'environnement diffère.
 # Toutes les actions sont fixées sur le SHA d'un commit (le commentaire donne la version).
@@ -19,6 +20,11 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+# Variables du workflow. Le nom de l'image peut être changé sans modifier ce fichier, via la variable
+# de dépôt IMAGE_NAME (Settings > Secrets and variables > Actions > Variables) ; défaut : le dépôt.
+env:
+  REGISTRY: ghcr.io
 
 jobs:
   test:
@@ -54,3 +60,91 @@ jobs:
           name: test-results
           path: test-results/
           if-no-files-found: warn
+
+  # Construit l'image Docker, vérifie qu'elle fonctionne, puis la publie sur GHCR
+  # (GitHub Container Registry). Le job "test" doit réussir avant (needs) : on ne publie jamais
+  # une image issue d'un code dont les tests échouent.
+  # Uniquement sur "push" : sur une pull request, le push est inutile (et interdit pour un fork).
+  build:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    # Un "permissions" au niveau du job remplace celui du workflow : on redonne la lecture du code
+    # et on ajoute "packages: write" (nécessaire pour pousser sur ghcr.io), uniquement ici.
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Les valeurs saisies par un utilisateur (nom de branche) passent par "env:" puis par une
+      # variable shell, jamais par ${{ }} dans le script : sinon un nom de branche piégé
+      # s'exécuterait comme du code (injection de script).
+      - name: Calculer le nom et les tags de l'image
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          IMAGE_NAME: ${{ vars.IMAGE_NAME || github.repository }}
+        run: |
+          # Un tag Docker n'accepte ni majuscule ni "/" : "feature/Ma-Branche" -> "feature-ma-branche".
+          branch=$(echo "$REF_NAME" | tr 'A-Z' 'a-z' | sed 's#[^a-z0-9_.-]#-#g; s#^[.-]*##')
+          # ${IMAGE_NAME,,} : un nom d'image doit être en minuscules (le dépôt contient des majuscules).
+          echo "IMAGE=${REGISTRY}/${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+          echo "BRANCH_TAG=${branch}" >> "$GITHUB_ENV"
+          echo "SHA_TAG=${branch}-${SHA::7}" >> "$GITHUB_ENV"
+
+      # Deux tags : "<branche>" (mobile, pointe sur le dernier commit) et "<branche>-<sha>"
+      # (immuable, identifie exactement le commit). Les labels OCI relient l'image au dépôt,
+      # ce qui rattache le paquet GHCR à ce dépôt (droits et visibilité).
+      - name: Construire l'image
+        env:
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          docker build \
+            --label "org.opencontainers.image.source=${SOURCE_URL}" \
+            --label "org.opencontainers.image.revision=${SHA}" \
+            -t "${IMAGE}:${BRANCH_TAG}" -t "${IMAGE}:${SHA_TAG}" .
+
+      # Test de fonctionnement AVANT publication : on lance l'image telle qu'elle sera publiée.
+      # Chaque commande qui échoue arrête l'étape, donc le job : rien n'est alors publié.
+      - name: Tester l'image
+        run: |
+          # -d : en arrière-plan ; -p 8080:8080 : port du runner -> port de Nginx dans le conteneur
+          # (8080 car Nginx tourne sans root). Le tag <branche>-<sha7> désigne l'image qu'on vient de construire.
+          docker run -d --name smoke -p 8080:8080 "${IMAGE}:${SHA_TAG}"
+
+          # Test 1 : la page d'accueil répond. -f : un code HTTP >= 400 est une erreur ; --retry* : on
+          # réessaie jusqu'à 10 fois (2 s d'écart) car "docker run -d" rend la main avant que Nginx soit prêt.
+          curl -fsS --retry 10 --retry-connrefused --retry-delay 2 -o /dev/null http://localhost:8080/
+
+          # Test 2 : le repli vers index.html fonctionne (try_files dans nginx.conf). Cette adresse n'est
+          # PAS un fichier : sans repli, Nginx répondrait 404. Le 200 prouve seulement que Nginx renvoie
+          # index.html ; c'est ensuite Angular qui décide quelle page afficher (route "**").
+          curl -fsS -o /dev/null http://localhost:8080/une-route-angular-quelconque
+
+          # Test 3 : les données sont embarquées dans l'image. L'application n'a ni base ni API : elle
+          # lit ce fichier JSON (olympic.service.ts), il doit donc être servi.
+          curl -fsS -o /dev/null http://localhost:8080/assets/mock/olympic.json
+
+          # Test 4 : le conteneur ne tourne pas en root. "id -u" donne l'UID dans le conteneur : 10002
+          # (utilisateur "app" du Dockerfile), jamais 0 (root).
+          test "$(docker exec smoke id -u)" = "10002"
+
+      - name: Afficher les logs du conteneur en cas d'échec
+        if: failure()
+        run: docker logs smoke
+
+      # Le GITHUB_TOKEN du job suffit pour pousser (droit packages: write). Le mot de passe passe
+      # par l'entrée standard pour ne pas apparaître dans la liste des processus.
+      - name: Se connecter à GHCR
+        env:
+          ACTOR: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login "$REGISTRY" -u "$ACTOR" --password-stdin
+
+      - name: Publier l'image
+        run: |
+          docker push "${IMAGE}:${BRANCH_TAG}"
+          docker push "${IMAGE}:${SHA_TAG}"
+          echo "Image publiée : ${IMAGE}:${SHA_TAG}" >> "$GITHUB_STEP_SUMMARY"

@@ -86,3 +86,42 @@ To publish the application to a GitLab registry, follow these steps:
    npm publish
    ```
    This will publish the package to your GitLab registry.
+
+## CI : build et publication de l'image Docker
+
+Le workflow `.github/workflows/ci.yml` comporte deux jobs : `test` (tests unitaires) puis `build`
+(construction, test de fonctionnement et publication de l'image sur GHCR, le GitHub Container
+Registry). Le job `build` ne tourne que sur un `push` et seulement si `test` a réussi.
+
+Chaque image reçoit deux tags : `<branche>` (mobile : dernier commit de la branche) et
+`<branche>-<sha7>` (immuable : commit exact). Les caractères interdits d'un tag Docker sont remplacés
+(`feature/Ma-Branche` devient `feature-ma-branche`). Exemple :
+`ghcr.io/<utilisateur>/<dépôt>:main-2f0ba4c`.
+
+Configuration : la variable de dépôt `IMAGE_NAME` (Settings > Secrets and variables > Actions >
+Variables) remplace le nom d'image par défaut (le nom du dépôt). Aucun secret à créer : le job utilise
+le `GITHUB_TOKEN` avec la permission `packages: write`.
+
+Pour valider le pipeline sans toucher à `main`, pousser une branche de test : l'image est publiée avec
+le tag de cette branche.
+
+### Différences entre les projets Angular et Java
+
+| | Angular (Olympic Tracker) | Java (Workshop Organizer) |
+|---|---|---|
+| Image finale | `nginx:1.27-alpine` + fichiers statiques | `eclipse-temurin:21-jre-alpine` + jar Spring Boot |
+| Étape de build dans le Dockerfile | `npm ci` puis `npm run build` | `./gradlew bootJar` |
+| Port du conteneur | 8080 (Nginx) | 8080 (Spring Boot) |
+| Utilisateur non-root (UID) | 10002 | 10001 |
+| Dépendance au runtime | aucune | PostgreSQL (service `db`) |
+| Test de fonctionnement en CI | `docker run`, puis `curl` sur `/`, sur une route inconnue (repli vers `index.html`) et sur `/assets/mock/olympic.json`, et contrôle de l'UID | `docker compose up --no-build --wait` (app + db) puis `curl` sur `/` et contrôle de l'UID |
+| Version applicative | pas de version dans l'image | `ARG APP_VERSION` du Dockerfile (jar nommé d'après `build.gradle`) |
+
+### Local et CI : ce qui diffère
+
+- La CI part d'un runner vierge : aucun cache de couches Docker, donc la première construction est plus
+  longue qu'en local.
+- Le nom d'image est calculé à partir du dépôt et mis en minuscules (GHCR l'exige). En local,
+  `docker compose` utilise un nom court (`olympic-games-tracker`, `workshop-organizer`).
+- Le test de la CI exécute l'image qui sera publiée (et non une reconstruction) : ce qui est testé est
+  ce qui est livré.

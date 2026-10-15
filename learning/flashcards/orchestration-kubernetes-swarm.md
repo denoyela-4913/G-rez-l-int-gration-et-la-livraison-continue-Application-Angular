@@ -77,5 +77,5 @@ R: Un `Deployment` (`replicas: 1`, label `app: olympic-games-app`) et un `Servic
 
 ---
 
-Q: Pourquoi faut-il passer les ports `80` à `8080` dans `k8s/` ?
+Q: Pourquoi `containerPort` et `targetPort` valent-ils `8080` dans `k8s/` ?
 R: L'image tourne désormais sans root, et un utilisateur non-root ne peut pas écouter sur un port inférieur à 1024. Nginx écoute sur `8080`, donc `containerPort` et `targetPort` doivent suivre.

@@ -96,11 +96,10 @@ par deux manifestes :
   de GitHub, puisque le projet a choisi GitHub, voir la fiche sur la CI) et les `imagePullSecrets` pour autoriser Kubernetes à tirer une image d'un registre privé.
   Le gabarit [values.tpl.yaml](../../values.tpl.yaml) prévoit les variables `image`, `port` et
   `imagePullSecret` à remplir.
-- **Incohérence à corriger** : le manifeste déclare toujours le port 80
+- **Ports alignés sur l'image** : `containerPort` et `targetPort` valent **8080**
   ([deployment-app.yaml:19](../../k8s/deployment-app.yaml#L19),
-  [service-app.yaml:10-11](../../k8s/service-app.yaml#L10-L11)), alors que l'image tourne
-  maintenant sans root et écoute sur **8080** (voir [Dockerfile](../../Dockerfile)). Il faut
-  passer `containerPort` et `targetPort` à 8080.
+  [service-app.yaml:11](../../k8s/service-app.yaml#L11)), car l'image tourne sans root et Nginx écoute
+  sur 8080 (voir [Dockerfile](../../Dockerfile)). Le `port: 80` du Service reste le port exposé.
 - Rien dans le dépôt n'utilise Swarm.
 
 ## À retenir

@@ -16,5 +16,5 @@ spec:
       - name: olympic-games-app
         # TODO: add the image of the application from the gitlab registry
         ports:
-        - containerPort: 80
+        - containerPort: 8080
       # TODO: define imagePullSecrets to use a docker-registry secret and authorize Kubenetes 

@@ -89,9 +89,11 @@ To publish the application to a GitLab registry, follow these steps:
 
 ## CI : build et publication de l'image Docker
 
-Le workflow `.github/workflows/ci.yml` comporte deux jobs : `test` (tests unitaires) puis `build`
-(construction, test de fonctionnement et publication de l'image sur GHCR, le GitHub Container
-Registry). Le job `build` ne tourne que sur un `push` et seulement si `test` a réussi.
+Le workflow `.github/workflows/ci.yml` comporte trois jobs : `test` (tests unitaires), `release`
+(calcul de la version, voir « Releases et versions » plus bas) puis `build` (construction, test de
+fonctionnement et publication de l'image sur GHCR, le GitHub Container Registry). Les jobs `release` et
+`build` ne tournent que sur un `push` de branche (et `release` uniquement sur `main`), après la réussite
+de `test`. Les pushs de tags git (`vX.Y.Z`) ne déclenchent pas la CI.
 
 Chaque image reçoit deux tags : `<branche>` (mobile : dernier commit de la branche) et
 `<branche>-<sha7>` (immuable : commit exact). Les caractères interdits d'un tag Docker sont remplacés
@@ -115,7 +117,7 @@ le tag de cette branche.
 | Utilisateur non-root (UID) | 10002 | 10001 |
 | Dépendance au runtime | aucune | PostgreSQL (service `db`) |
 | Test de fonctionnement en CI | `docker run`, puis `curl` sur `/`, sur une route inconnue (repli vers `index.html`) et sur `/assets/mock/olympic.json`, et contrôle de l'UID | `docker compose up --no-build --wait` (app + db) puis `curl` sur `/` et contrôle de l'UID |
-| Version applicative | pas de version dans l'image | `ARG APP_VERSION` du Dockerfile (jar nommé d'après `build.gradle`) |
+| Version applicative | `version` de `package.json` (mise à jour par la CI) ; l'image reçoit le tag `X.Y.Z` | `ARG APP_VERSION` du Dockerfile (jar nommé d'après `build.gradle`) |
 
 ### Local et CI : ce qui diffère
 
@@ -125,3 +127,47 @@ le tag de cette branche.
   `docker compose` utilise un nom court (`olympic-games-tracker`, `workshop-organizer`).
 - Le test de la CI exécute l'image qui sera publiée (et non une reconstruction) : ce qui est testé est
   ce qui est livré.
+
+## Releases et versions
+
+La version de l'application est calculée automatiquement par
+[semantic-release](https://semantic-release.org/) à chaque push sur `main`, à partir des messages de
+commit. Elle n'est plus modifiée à la main : `version` dans `package.json` et `package-lock.json` est mise
+à jour par la CI.
+
+### Écrire ses messages de commit
+
+Le format est `type: description` (Conventional Commits). Le type décide de la version suivante :
+
+| Message de commit | Effet | Exemple (depuis 0.1.3) |
+|---|---|---|
+| `fix: ...` | version corrective (patch) | 0.1.4 |
+| `feat: ...` | nouvelle fonctionnalité (minor) | 0.2.0 |
+| `feat!: ...` ou `BREAKING CHANGE:` dans le corps | changement cassant (major) | 1.0.0 |
+| `docs:`, `ci:`, `chore:`, `test:`, `build:`, `refactor:` | aucune release | inchangée |
+
+Un push sur `main` sans `feat:` ni `fix:` depuis le dernier tag ne crée donc aucune version. Attention : un
+changement de CI qui ne touche pas à l'application doit être commité en `ci:`, pas en `fix(ci):`, sinon il
+publie une nouvelle version.
+
+### Ce que fait la CI à chaque release
+
+1. Le job `release` crée le commit `chore(release): X.Y.Z [skip ci]` (mise à jour de `package.json` et
+   `package-lock.json`), le tag `vX.Y.Z` et la release GitHub avec ses notes. Rien n'est publié sur npm.
+2. Le job `build` construit ce tag et publie l'image avec ses tags habituels et le tag `X.Y.Z`.
+
+Le `[skip ci]` empêche la CI de se relancer sur le commit de version. Après une release, penser à faire
+`git pull` avant de pousser : la CI a ajouté un commit sur `main`.
+
+### Simuler une release sans rien créer
+
+```bash
+GITHUB_TOKEN=$(gh auth token) npx --yes -p semantic-release@25.0.9 \
+  -p @semantic-release/commit-analyzer@13.0.1 -p @semantic-release/release-notes-generator@14.1.1 \
+  -p @semantic-release/npm@13.2.0 -p @semantic-release/exec@7.1.0 \
+  -p @semantic-release/git@11.0.1 -p @semantic-release/github@12.0.10 \
+  -p conventional-changelog-conventionalcommits@9.3.1 \
+  semantic-release --dry-run --no-ci
+```
+
+Il affiche la version qui serait créée (ou « no release »). Il doit être lancé depuis `main`.

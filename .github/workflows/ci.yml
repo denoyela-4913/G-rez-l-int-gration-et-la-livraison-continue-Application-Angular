@@ -8,6 +8,11 @@ name: CI
 
 on:
   push:
+    # CI sur toutes les branches, mais pas sur les tags git (vX.Y.Z) : ils sont créés par semantic-release.
+    # Sinon un tag poussé à la main serait pris pour une branche et produirait une image Docker au nom
+    # parasite (ex. v0.1.3-5f237d5).
+    branches: ['**']
+    tags-ignore: ['**']
   pull_request:
 
 # Droits minimaux du GITHUB_TOKEN. "checks: write" permet de publier le rapport de tests
@@ -17,9 +22,10 @@ permissions:
   checks: write
 
 # Une nouvelle exécution sur la même branche annule la précédente encore en cours.
+# Sur main, on n'annule jamais un run en cours : il peut être en train de créer une release (tag + commit).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Variables du workflow. Le nom de l'image peut être changé sans modifier ce fichier, via la variable
 # de dépôt IMAGE_NAME (Settings > Secrets and variables > Actions > Variables) ; défaut : le dépôt.
@@ -61,13 +67,63 @@ jobs:
           path: test-results/
           if-no-files-found: warn
 
+  # Calcule la prochaine version à partir des messages de commit (Conventional Commits) avec
+  # semantic-release, puis crée le commit de version, le tag vX.Y.Z et la release GitHub.
+  # La configuration est dans .releaserc.json. Uniquement sur un push sur main, après les tests.
+  # Si aucun commit "feat:" ou "fix:" n'est arrivé depuis le dernier tag, il ne fait rien (pas de release).
+  release:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    # Droit d'écriture nécessaire pour pousser le commit de version et le tag, et créer la release.
+    permissions:
+      contents: write
+    # Version créée (vide si aucune release) : utilisée par le job "build" pour tagger l'image.
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      # fetch-depth: 0 : semantic-release lit tout l'historique et les tags (par défaut, seul le
+      # dernier commit est récupéré, il ne trouverait aucun tag).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Node 24 : le plugin @semantic-release/git exige Node >= 24.15 (ou 22.22.2+).
+      - name: Installer Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      # Versions fixées (pas de "latest") : un résultat reproductible. Pas d'action tierce : npx
+      # télécharge directement les paquets npm officiels. Le plugin npm met à jour "version" dans
+      # package.json et package-lock.json (npmPublish: false : rien n'est publié sur npm).
+      - name: Publier la release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx --yes \
+            -p semantic-release@25.0.9 \
+            -p @semantic-release/commit-analyzer@13.0.1 \
+            -p @semantic-release/release-notes-generator@14.1.1 \
+            -p @semantic-release/npm@13.2.0 \
+            -p @semantic-release/exec@7.1.0 \
+            -p @semantic-release/git@11.0.1 \
+            -p @semantic-release/github@12.0.10 \
+            -p conventional-changelog-conventionalcommits@9.3.1 \
+            semantic-release
+
   # Construit l'image Docker, vérifie qu'elle fonctionne, puis la publie sur GHCR
   # (GitHub Container Registry). Le job "test" doit réussir avant (needs) : on ne publie jamais
   # une image issue d'un code dont les tests échouent.
   # Uniquement sur "push" : sur une pull request, le push est inutile (et interdit pour un fork).
   build:
-    needs: test
-    if: github.event_name == 'push'
+    needs: [test, release]
+    # "release" est ignoré hors de main : sans cette condition, "build" serait ignoré lui aussi.
+    # Il doit en revanche réussir (ou être ignoré) : on ne construit pas si la release a échoué.
+    if: >-
+      ${{ !cancelled() && github.event_name == 'push' && needs.test.result == 'success'
+      && (needs.release.result == 'success' || needs.release.result == 'skipped') }}
     runs-on: ubuntu-24.04
     # Un "permissions" au niveau du job remplace celui du workflow : on redonne la lecture du code
     # et on ajoute "packages: write" (nécessaire pour pousser sur ghcr.io), uniquement ici.
@@ -75,7 +131,11 @@ jobs:
       contents: read
       packages: write
     steps:
+      # Si une release vient d'être créée, on construit le tag vX.Y.Z : il contient le commit de version
+      # (package.json et package-lock.json à jour). Sinon, on construit le commit qui a déclenché le run.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.version && format('v{0}', needs.release.outputs.version) || github.sha }}
 
       # Les valeurs saisies par un utilisateur (nom de branche) passent par "env:" puis par une
       # variable shell, jamais par ${{ }} dans le script : sinon un nom de branche piégé
@@ -83,9 +143,14 @@ jobs:
       - name: Calculer le nom et les tags de l'image
         env:
           REF_NAME: ${{ github.ref_name }}
-          SHA: ${{ github.sha }}
+          VERSION: ${{ needs.release.outputs.version }}
           IMAGE_NAME: ${{ vars.IMAGE_NAME || github.repository }}
         run: |
+          # Commit réellement construit : github.sha, ou le commit de version si une release a été créée.
+          SHA=$(git rev-parse HEAD)
+          echo "SHA=${SHA}" >> "$GITHUB_ENV"
+          # Tag de version (ex. 0.2.0), seulement quand une release vient d'être créée.
+          echo "VERSION_TAG=${VERSION}" >> "$GITHUB_ENV"
           # Un tag Docker n'accepte ni majuscule ni "/" : "feature/Ma-Branche" -> "feature-ma-branche".
           branch=$(echo "$REF_NAME" | tr 'A-Z' 'a-z' | sed 's#[^a-z0-9_.-]#-#g; s#^[.-]*##')
           # ${IMAGE_NAME,,} : un nom d'image doit être en minuscules (le dépôt contient des majuscules).
@@ -99,12 +164,13 @@ jobs:
       - name: Construire l'image
         env:
           SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
-          SHA: ${{ github.sha }}
         run: |
+          tags=(-t "${IMAGE}:${BRANCH_TAG}" -t "${IMAGE}:${SHA_TAG}")
+          if [ -n "${VERSION_TAG}" ]; then tags+=(-t "${IMAGE}:${VERSION_TAG}"); fi
           docker build \
             --label "org.opencontainers.image.source=${SOURCE_URL}" \
             --label "org.opencontainers.image.revision=${SHA}" \
-            -t "${IMAGE}:${BRANCH_TAG}" -t "${IMAGE}:${SHA_TAG}" .
+            "${tags[@]}" .
 
       # Test de fonctionnement AVANT publication : on lance l'image telle qu'elle sera publiée.
       # Chaque commande qui échoue arrête l'étape, donc le job : rien n'est alors publié.
@@ -149,4 +215,5 @@ jobs:
         run: |
           docker push "${IMAGE}:${BRANCH_TAG}"
           docker push "${IMAGE}:${SHA_TAG}"
+          if [ -n "${VERSION_TAG}" ]; then docker push "${IMAGE}:${VERSION_TAG}"; fi
           echo "Image publiée : ${IMAGE}:${SHA_TAG}" >> "$GITHUB_STEP_SUMMARY"

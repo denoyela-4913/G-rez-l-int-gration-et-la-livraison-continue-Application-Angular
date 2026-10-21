@@ -68,4 +68,4 @@ R: `&&` est prioritaire sur `||`. Sans parenthèses, le `||` ne porterait que su
 ---
 
 Q: Où est le `if: >-` étudié, et que garantit-il dans DataShare ?
-R: Dans le job `build` du `ci.yml` du dépôt Java (`.github/workflows/ci.yml`, lignes 115-117). Il garantit qu'on construit et publie l'image seulement sur un `push`, après des tests réussis et une release réussie ou ignorée, jamais si le workflow est annulé.
+R: Dans le job `build` du `ci.yml` des dépôts Java (lignes 120-122) et Angular (lignes 124-126), où il est identique (`.github/workflows/ci.yml`). Il garantit qu'on construit et publie l'image seulement sur un `push`, après des tests réussis et une release réussie ou ignorée, jamais si le workflow est annulé.

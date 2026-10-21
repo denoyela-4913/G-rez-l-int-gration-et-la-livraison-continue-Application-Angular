@@ -6,12 +6,12 @@ lignes** (block scalars YAML) et **comment l'expression est évaluée** (syntaxe
 de statut de GitHub Actions). Ce sont deux couches distinctes : YAML produit une chaîne, puis
 GitHub Actions évalue cette chaîne.
 
-> **Où se trouve l'exemple.** Le `if: >-` étudié ici est dans le `ci.yml` du dépôt **Java**
-> ([ci.yml:115-117](../../../dev-appli-java/.github/workflows/ci.yml#L115-L117), job `build`, branche
-> `ci/semantic-release` au moment de la rédaction). Le `ci.yml` du dépôt **Angular**
-> ([ci.yml](../../.github/workflows/ci.yml)) n'a pas encore de job `release` : son `build` n'a que
-> `needs: test` et `if: github.event_name == 'push'` (lignes 69-70). Les `run: |` multi-lignes, eux,
-> sont bien dans les deux dépôts.
+> **Où se trouve l'exemple.** Le `if: >-` étudié ici est présent, à l'identique, dans le job `build` du
+> `ci.yml` des deux dépôts : **Java**
+> ([ci.yml:116-122](../../../dev-appli-java/.github/workflows/ci.yml#L116-L122)) et **Angular**
+> ([ci.yml:120-126](../../.github/workflows/ci.yml#L120-L126)). Les deux ont aussi un job `release`
+> (semantic-release), que ce `if:` prend en compte. Les `run: |` multi-lignes sont, eux aussi, dans les
+> deux dépôts.
 
 ## Les block scalars YAML
 
@@ -125,7 +125,8 @@ résultats avec `needs.<job>.result`, qui vaut `success`, `failure`, `cancelled`
 
 ## Dans DataShare
 
-Le job `build` du dépôt Java ([ci.yml:111-118](../../../dev-appli-java/.github/workflows/ci.yml#L111-L118))
+Le job `build` du dépôt Java ([ci.yml:116-122](../../../dev-appli-java/.github/workflows/ci.yml#L116-L122);
+le même figure dans le dépôt Angular, [ci.yml:120-126](../../.github/workflows/ci.yml#L120-L126))
 dépend de `test` et de `release`. `release` n'a lieu que sur `main` (il est `skipped` ailleurs) :
 
 ```yaml
@@ -151,7 +152,7 @@ Résultat : sur `main`, `build` attend la release ; sur une autre branche, `rele
 `build` s'exécute si les tests passent ; si `release` échoue ou si les tests échouent, `build` est ignoré.
 
 Les scripts multi-lignes (`run: |`) sont dans les deux dépôts, par exemple dans le `ci.yml` Angular
-([ci.yml:88](../../.github/workflows/ci.yml#L88)) pour calculer le nom et les tags de l'image.
+([ci.yml:143](../../.github/workflows/ci.yml#L143)) pour calculer le nom et les tags de l'image.
 
 ## À retenir
 

@@ -9,3 +9,4 @@ Fiches explicatives et flashcards, générées par la skill `learning-card`
 |---|---|---|
 | Orchestration : Kubernetes et Docker Swarm | [fiche](fiches/orchestration-kubernetes-swarm.md) · [PDF](build/fiches/orchestration-kubernetes-swarm.pdf) | [cartes](flashcards/orchestration-kubernetes-swarm.md) · [CSV Anki](build/flashcards/orchestration-kubernetes-swarm.csv) |
 | GitHub Actions et GitLab CI | [fiche](fiches/github-actions-gitlab-ci.md) · [PDF](build/fiches/github-actions-gitlab-ci.pdf) | [cartes](flashcards/github-actions-gitlab-ci.md) · [CSV Anki](build/flashcards/github-actions-gitlab-ci.csv) |
+| YAML : block scalars et conditions `if:` de GitHub Actions | [fiche](fiches/yaml-block-scalars-conditions-ci.md) · [PDF](build/fiches/yaml-block-scalars-conditions-ci.pdf) | [cartes](flashcards/yaml-block-scalars-conditions-ci.md) · [CSV Anki](build/flashcards/yaml-block-scalars-conditions-ci.csv) |

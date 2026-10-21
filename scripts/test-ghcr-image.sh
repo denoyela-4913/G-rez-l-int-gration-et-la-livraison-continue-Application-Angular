@@ -50,7 +50,8 @@ docker ps --filter "name=$CONTAINER"
 
 echo "Tests..."
 pause
-curl -fsS --retry 10 --retry-connrefused --retry-delay 2 -I http://localhost:8080/
+# --retry-all-errors : Docker peut couper la connexion (erreur 56) avant que Nginx soit prêt.
+curl -fsS --retry 10 --retry-all-errors --retry-delay 2 -I http://localhost:8080/
 # Une route inconnue doit aussi répondre 200 : Nginx renvoie index.html et Angular gère le routage.
 curl -fsS -o /dev/null -w "route inconnue : HTTP %{http_code}\n" http://localhost:8080/route-bidon
 test "$(docker exec "$CONTAINER" id -u)" = "10002" && echo "OK : le conteneur ne tourne pas en root (UID 10002)"

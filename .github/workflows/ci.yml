@@ -116,7 +116,9 @@ jobs:
 
           # Test 1 : la page d'accueil répond. -f : un code HTTP >= 400 est une erreur ; --retry* : on
           # réessaie jusqu'à 10 fois (2 s d'écart) car "docker run -d" rend la main avant que Nginx soit prêt.
-          curl -fsS --retry 10 --retry-connrefused --retry-delay 2 -o /dev/null http://localhost:8080/
+          # --retry-all-errors (et non --retry-connrefused seul) : pendant ce délai, Docker peut aussi
+          # accepter la connexion puis la couper ("Connection reset by peer", erreur 56), non réessayée sinon.
+          curl -fsS --retry 10 --retry-all-errors --retry-delay 2 -o /dev/null http://localhost:8080/
 
           # Test 2 : le repli vers index.html fonctionne (try_files dans nginx.conf). Cette adresse n'est
           # PAS un fichier : sans repli, Nginx répondrait 404. Le 200 prouve seulement que Nginx renvoie

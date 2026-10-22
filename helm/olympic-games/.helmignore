@@ -1,0 +1,4 @@
+# Fichiers ignorés à l'empaquetage du chart (helm package).
+.git
+*.swp
+*.bak

@@ -7,8 +7,9 @@ spec:
     app: olympic-games-app
   ports:
     - protocol: TCP
-      # 8080 et non 80 : "minikube tunnel" ne publie un port inférieur à 1024 (privilégié) qu'avec sudo.
-      # Même port que le conteneur et que le Service du dépôt Java.
-      port: 8080
+      # Port 80 : l'application est visible sur le port 80 de la machine. C'est un port privilégié
+      # (< 1024) : "minikube tunnel" ne le publie que si l'on saisit le mot de passe sudo quand il le demande.
+      # Le conteneur écoute sur 8080 (Nginx tourne sans root), d'où le targetPort.
+      port: 80
       targetPort: 8080
   type: LoadBalancer

@@ -1,7 +1,7 @@
 # Environnement de développement.
 # Installation : helm install olympic charts/olympic-games -f charts/olympic-games/values-dev.yaml -n olympic-dev --create-namespace
 app:
-  # Tag écrit à la main : à mettre à jour après chaque release pour suivre la dernière version.
+  # Tag mis à jour automatiquement à chaque release (update_version.sh, via semantic-release).
   image: ghcr.io/denoyela-4913/oc-p04-angular-olympic-games-tracker:0.2.0
   replicas: 1
 

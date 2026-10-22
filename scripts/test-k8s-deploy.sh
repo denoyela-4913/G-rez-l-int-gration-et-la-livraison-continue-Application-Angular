@@ -6,7 +6,7 @@
 # Usage : scripts/test-k8s-deploy.sh [--pause] [--keep] [--helm dev|staging]
 #   --pause : attend la touche Entrée entre chaque étape (pour suivre pas à pas).
 #   --keep  : ne supprime pas le namespace à la fin (pour inspecter le cluster à la main).
-#   --helm  : déploie avec le chart Helm (helm/olympic-games) et le fichier de valeurs de l'environnement
+#   --helm  : déploie avec le chart Helm (charts/olympic-games) et le fichier de valeurs de l'environnement
 #             donné (values-dev.yaml ou values-staging.yaml), au lieu des manifestes de k8s/.
 #             Le Service de staging est sur le port 8081 (non privilégié : pas de sudo pour le tunnel).
 # Prérequis : kubectl, Minikube démarré et "minikube tunnel" lancé dans un autre terminal (sans le
@@ -45,7 +45,7 @@ while [ $# -gt 0 ]; do
 	esac
 	shift
 done
-CHART="helm/olympic-games"
+CHART="charts/olympic-games"
 if [ -n "$HELM_ENV" ] && [ ! -f "$CHART/values-$HELM_ENV.yaml" ]; then
 	echo "Environnement Helm inconnu : \"$HELM_ENV\" (pas de fichier $CHART/values-$HELM_ENV.yaml)." >&2
 	echo "Usage : $0 [--pause] [--keep] [--helm dev|staging]" >&2

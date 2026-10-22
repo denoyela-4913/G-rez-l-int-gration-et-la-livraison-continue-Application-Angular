@@ -9,7 +9,10 @@
 # Prérequis : kubectl, Minikube démarré et "minikube tunnel" lancé dans un autre terminal (sans le
 # tunnel, le Service LoadBalancer n'a pas d'adresse externe). Le script les vérifie et, s'il manque
 # quelque chose, affiche les commandes à lancer.
-# Le port du Service (8080) doit être libre sur la machine : le tunnel l'y publie.
+# Le Service est sur le port 80 de la machine, un port privilégié (< 1024) : au lancement, le tunnel
+# demande le mot de passe sudo, il faut le saisir (sinon le port n'est pas publié).
+# Attention : si un Ingress existe dans le cluster (addon ingress), il est lui aussi publié sur le
+# port 80 ; pendant le test, le Service de l'application le masque, puis il redevient joignable.
 # Codes de sortie : 0 = tout est bon, 1 = usage incorrect, 2 = prérequis manquant, 3 = un test a échoué.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -84,7 +87,8 @@ fi
 # Le motif est ancré sur le DÉBUT de la ligne de commande : sans cela, tout processus dont la ligne de
 # commande contient seulement le texte "minikube tunnel" (un shell, un éditeur...) serait pris pour le tunnel.
 if command -v minikube >/dev/null 2>&1 && ! pgrep -f "^(/[^ ]*/)?minikube tunnel" >/dev/null 2>&1; then
-	MISSING+=("Le tunnel Minikube n'est pas lancé. Dans un AUTRE terminal, lancer et laisser ouvert :  minikube tunnel")
+	MISSING+=("Le tunnel Minikube n'est pas lancé. Dans un AUTRE terminal, lancer et laisser ouvert :  minikube tunnel
+      Le Service est sur le port 80 (privilégié) : le tunnel demande le mot de passe sudo, le saisir dans ce terminal.")
 fi
 
 if [ ${#MISSING[@]} -gt 0 ]; then
@@ -124,6 +128,12 @@ wait_http_200() {
 	return 1
 }
 
+# Information : un Ingress existant partage le port 80 de la machine avec ce Service (voir l'en-tête).
+if kubectl get ingress -A --no-headers 2>/dev/null | grep -q .; then
+	echo "NOTE : un Ingress existe dans le cluster ($(kubectl get ingress -A --no-headers | awk '{print $2}' | paste -sd, -))."
+	echo "       Pendant le test il est masqué par le Service de l'application sur le port 80, puis il redevient joignable."
+fi
+
 # ---------- Déploiement ----------
 step "Déploiement de k8s/ dans le namespace $NS"
 kubectl create namespace "$NS" >/dev/null
@@ -148,11 +158,31 @@ PORT=$(kubectl get svc -n "$NS" "$SVC" -o jsonpath='{.spec.ports[0].port}')
 ok "adresse externe : $IP:$PORT"
 URL="http://$IP:$PORT"
 
+# diagnose : à appeler quand l'application ne répond pas comme attendu. Une adresse externe ne prouve pas
+# que le port est réellement publié sur la machine : le tunnel peut l'attribuer sans pouvoir le lier.
+diagnose() {
+	echo "  Diagnostic :"
+	if [ "$(http_code "$URL/")" = "000" ]; then
+		echo "    - Rien ne répond sur $IP:$PORT. Causes possibles :"
+		echo "      * port < 1024 et tunnel sans droits : l'arrêter (Ctrl+C), le relancer (minikube tunnel) et saisir"
+		echo "        le mot de passe sudo quand il le demande ;"
+		echo "      * le Service vise un port où le conteneur n'écoute pas (targetPort) : kubectl get endpoints -n $NS"
+	else
+		echo "    - Quelque chose répond sur $IP:$PORT, mais ce n'est pas l'application (pas de <app-root>) :"
+		echo "      soit un autre service occupe ce port (Ingress, autre Service LoadBalancer...), voir :  ss -ltnp | grep ':$PORT '"
+		echo "      soit l'image déployée n'est pas la bonne, voir :  kubectl describe pod -n $NS -l app=olympic-games-app"
+	fi
+}
+
 # ---------- Tests fonctionnels ----------
 step "L'application répond par le LoadBalancer"
 check "GET / répond 200" wait_http_200 "$URL/"
 check "GET / renvoie bien la page de l'application Angular (<app-root>)" \
 	bash -c "curl -s --max-time 5 '$URL/' | grep -q '<app-root'"
+# Si la page n'est pas celle de l'application, on explique pourquoi (tunnel sans sudo, port occupé).
+if ! curl -s --max-time 5 "$URL/" | grep -q '<app-root'; then
+	diagnose
+fi
 # Une adresse qui n'est pas un fichier doit aussi répondre 200 : Nginx renvoie index.html (try_files)
 # et c'est ensuite Angular, dans le navigateur, qui décide quelle page afficher.
 check "une route inconnue répond 200 (repli vers index.html)" \

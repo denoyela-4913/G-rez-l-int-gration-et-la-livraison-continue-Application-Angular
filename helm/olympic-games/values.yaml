@@ -1,0 +1,18 @@
+# Valeurs par défaut du chart. Même schéma que values.tpl.yaml (app.image, app.port, app.imagePullSecret),
+# complété par app.replicas et service.*.
+# Chaque environnement les surcharge dans son fichier : values-dev.yaml, values-staging.yaml.
+app:
+  # Image complète, tag compris (ex. ghcr.io/utilisateur/image:0.2.0). Pas de valeur par défaut : chaque
+  # environnement doit choisir sa version, le chart refuse de s'installer sans (voir le template).
+  image: ""
+  # Port d'écoute du conteneur (Nginx tourne sans root, donc un port supérieur à 1024).
+  port: 8080
+  # Nom d'un Secret de type docker-registry pour tirer l'image d'un registre PRIVÉ. Vide : pas de secret
+  # (cas du paquet GHCR public). Le Secret doit exister dans le namespace avant l'installation.
+  imagePullSecret: ""
+  replicas: 1
+
+service:
+  type: LoadBalancer
+  # Port du Service sur la machine (avec minikube tunnel). Le 80 est privilégié : le tunnel demande sudo.
+  port: 80

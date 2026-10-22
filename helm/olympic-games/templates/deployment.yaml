@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # Mêmes noms que les manifestes de k8s/ : un seul environnement par namespace, et les scripts
+  # de test fonctionnent avec les deux méthodes de déploiement.
+  name: olympic-games-app-deployment
+  labels:
+    {{- include "olympic-games.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.app.replicas }}
+  selector:
+    matchLabels:
+      app: olympic-games-app
+  template:
+    metadata:
+      labels:
+        app: olympic-games-app
+        {{- include "olympic-games.labels" . | nindent 8 }}
+    spec:
+      {{- if .Values.app.imagePullSecret }}
+      # Rendu seulement si une valeur est donnée : registre privé.
+      imagePullSecrets:
+      - name: {{ .Values.app.imagePullSecret }}
+      {{- end }}
+      containers:
+      - name: olympic-games-app
+        image: {{ required "app.image est obligatoire (ex. ghcr.io/utilisateur/image:0.2.0) : utiliser -f values-dev.yaml ou --set app.image=..." .Values.app.image | quote }}
+        ports:
+        - containerPort: {{ .Values.app.port }}

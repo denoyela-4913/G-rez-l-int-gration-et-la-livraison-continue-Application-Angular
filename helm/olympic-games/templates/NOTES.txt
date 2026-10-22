@@ -1,0 +1,8 @@
+Olympic Games Tracker déployé (release {{ .Release.Name }}, namespace {{ .Release.Namespace }}).
+
+Image : {{ .Values.app.image }}   Réplicas : {{ .Values.app.replicas }}
+
+Avec "minikube tunnel" actif, l'application est visible sur : http://localhost:{{ .Values.service.port }}
+{{- if lt (int .Values.service.port) 1024 }}
+(port {{ .Values.service.port }} < 1024 : le tunnel demande le mot de passe sudo)
+{{- end }}

@@ -214,8 +214,10 @@ Vérifier un chart sans rien installer : `helm lint charts/olympic-games -f char
 
 ### Mettre à jour la version déployée
 
-Le tag de l'image est dans `app.image` de chaque fichier de valeurs (et `appVersion` dans `Chart.yaml`, à titre
-informatif). Il se met à jour différemment selon l'environnement :
+Le tag de l'image est dans `app.image` de chaque fichier de valeurs. Il n'y a pas d'`appVersion` dans `Chart.yaml` :
+elle serait partagée par tous les environnements. L'étiquette `app.kubernetes.io/version` est déduite du tag de
+`app.image`, donc toujours celle de la version réellement déployée. Il se met à jour différemment selon
+l'environnement :
 
 - **dev : automatique.** À chaque release, `update_version.sh` (lancé par semantic-release) réécrit le tag de
   `values-dev.yaml`, qui part dans le commit `chore(release)`. Il reste à lancer `helm upgrade` pour que le

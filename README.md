@@ -220,6 +220,30 @@ mais ne modifie pas ces fichiers : après une release, éditer `values-dev.yaml`
 on décide de promouvoir la version), puis `helm upgrade`. Tant que ce n'est pas fait, le cluster continue de
 faire tourner l'ancienne version.
 
+### Sondes de santé
+
+| Sonde | Test | Si elle échoue |
+|---|---|---|
+| `readinessProbe` | `GET /` toutes les 5 s, 3 échecs | le pod est **retiré du Service** (aucune requête), sans redémarrage |
+| `livenessProbe` | `GET /` toutes les 10 s, 3 échecs | le conteneur est **redémarré** |
+
+- Les durées sont des valeurs du chart (`app.probes.*`) ; `enabled: false` supprime les sondes.
+- **Pas de `startupProbe`** : Nginx démarre en moins d'une seconde.
+- Un **`preStop`** (`app.preStopSeconds`, 5 s par défaut) fait attendre l'ancien pod avant son arrêt, lors d'une mise
+  à jour : le Service n'a pas encore fini de le retirer de sa liste, et sans pause les requêtes qui lui sont encore
+  envoyées échouent. `0` supprime la pause.
+- La **readiness** est la sonde utile ici, surtout avec plusieurs réplicas (staging : 2) : un pod qui ne répond
+  plus est sorti du Service. La **liveness** a une valeur limitée pour un site statique : si Nginx s'arrête, le
+  conteneur s'arrête et est déjà redémarré sans sonde ; elle ne sert que si Nginx se **bloque** sans s'arrêter.
+
+Mesure sur Minikube (staging, 2 réplicas, processus de travail Nginx d'un pod figés avec `SIGSTOP`) :
+avant le retrait du pod, environ la moitié des requêtes (3 à 5 sur 8) expirent ; après ~19 s la readiness
+retire le pod du Service et **8 requêtes sur 8** aboutissent ; la liveness redémarre le conteneur vers ~60 s.
+
+Mesure d'une mise à jour (`rollout restart`, une réplique, requêtes toutes les 0,1 s) : ≈ 2,1 à 2,2 s de coupure
+sans sondes ni `preStop` (4 échecs sur ~230 requêtes, 2 essais), **aucune coupure avec les sondes et le `preStop`**
+(0 échec sur 3 essais).
+
 ### Accès avec `minikube tunnel`
 
 Lancer `minikube tunnel` dans un autre terminal et le laisser ouvert. Le port 80 est **privilégié** (< 1024) :

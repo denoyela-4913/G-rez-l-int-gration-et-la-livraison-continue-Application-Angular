@@ -3,14 +3,18 @@
 # jetable, vérifie qu'elle répond par le Service LoadBalancer (page d'accueil, repli vers index.html,
 # fichier de données), qu'elle ne tourne pas en root et que Kubernetes recrée son pod s'il est supprimé,
 # puis supprime le namespace.
-# Usage : scripts/test-k8s-deploy.sh [--pause] [--keep]
+# Usage : scripts/test-k8s-deploy.sh [--pause] [--keep] [--helm dev|staging]
 #   --pause : attend la touche Entrée entre chaque étape (pour suivre pas à pas).
 #   --keep  : ne supprime pas le namespace à la fin (pour inspecter le cluster à la main).
+#   --helm  : déploie avec le chart Helm (helm/olympic-games) et le fichier de valeurs de l'environnement
+#             donné (values-dev.yaml ou values-staging.yaml), au lieu des manifestes de k8s/.
+#             Le Service de staging est sur le port 8081 (non privilégié : pas de sudo pour le tunnel).
 # Prérequis : kubectl, Minikube démarré et "minikube tunnel" lancé dans un autre terminal (sans le
 # tunnel, le Service LoadBalancer n'a pas d'adresse externe). Le script les vérifie et, s'il manque
 # quelque chose, affiche les commandes à lancer.
-# Le Service est sur le port 80 de la machine, un port privilégié (< 1024) : au lancement, le tunnel
-# demande le mot de passe sudo, il faut le saisir (sinon le port n'est pas publié).
+# Avec k8s/ ou --helm dev, le Service est sur le port 80 de la machine, un port privilégié (< 1024) : au
+# lancement, le tunnel demande le mot de passe sudo, il faut le saisir (sinon le port n'est pas publié).
+# Le mot de passe est redemandé quand le cache sudo expire et qu'une nouvelle redirection du port 80 est ouverte.
 # Attention : si un Ingress existe dans le cluster (addon ingress), il est lui aussi publié sur le
 # port 80 ; pendant le test, le Service de l'application le masque, puis il redevient joignable.
 # Codes de sortie : 0 = tout est bon, 1 = usage incorrect, 2 = prérequis manquant, 3 = un test a échoué.
@@ -19,16 +23,34 @@ cd "$(dirname "$0")/.."
 
 PAUSE=false
 KEEP=false
-for arg in "$@"; do
-	case "$arg" in
+HELM_ENV=""
+while [ $# -gt 0 ]; do
+	case "$1" in
 		--pause) PAUSE=true ;;
 		--keep) KEEP=true ;;
+		--helm)
+			# L'option exige une valeur : sans elle, le script se rabattrait en silence sur k8s/.
+			if [ $# -lt 2 ] || [ -z "$2" ]; then
+				echo "L'option --helm demande un environnement (dev ou staging)." >&2
+				echo "Usage : $0 [--pause] [--keep] [--helm dev|staging]" >&2
+				exit 1
+			fi
+			HELM_ENV="$2"
+			shift
+			;;
 		*)
-			echo "Usage : $0 [--pause] [--keep]" >&2
+			echo "Usage : $0 [--pause] [--keep] [--helm dev|staging]" >&2
 			exit 1
 			;;
 	esac
+	shift
 done
+CHART="helm/olympic-games"
+if [ -n "$HELM_ENV" ] && [ ! -f "$CHART/values-$HELM_ENV.yaml" ]; then
+	echo "Environnement Helm inconnu : \"$HELM_ENV\" (pas de fichier $CHART/values-$HELM_ENV.yaml)." >&2
+	echo "Usage : $0 [--pause] [--keep] [--helm dev|staging]" >&2
+	exit 1
+fi
 
 NS="olympic-test-$RANDOM"
 APP="deploy/olympic-games-app-deployment"
@@ -75,6 +97,9 @@ MISSING=()
 
 if ! command -v kubectl >/dev/null 2>&1; then
 	MISSING+=("kubectl est absent. Installation : https://kubernetes.io/docs/tasks/tools/")
+fi
+if [ -n "$HELM_ENV" ] && ! command -v helm >/dev/null 2>&1; then
+	MISSING+=("helm est absent. Installation : https://helm.sh/docs/intro/install/")
 fi
 if ! command -v minikube >/dev/null 2>&1; then
 	MISSING+=("minikube est absent. Installation : https://minikube.sigs.k8s.io/docs/start/")
@@ -135,10 +160,21 @@ if kubectl get ingress -A --no-headers 2>/dev/null | grep -q .; then
 fi
 
 # ---------- Déploiement ----------
-step "Déploiement de k8s/ dans le namespace $NS"
-kubectl create namespace "$NS" >/dev/null
-kubectl apply -n "$NS" -f k8s/
+if [ -n "$HELM_ENV" ]; then
+	step "Déploiement du chart Helm ($HELM_ENV) dans le namespace $NS"
+	kubectl create namespace "$NS" >/dev/null
+	# --wait : helm attend que les ressources soient prêtes avant de rendre la main.
+	helm install olympic "$CHART" -f "$CHART/values-$HELM_ENV.yaml" -n "$NS" --wait --timeout 3m | grep -E "^(NAME|STATUS|REVISION)"
+	check "la release Helm est en état \"deployed\"" \
+		test "$(helm status olympic -n "$NS" -o json | python3 -c 'import sys, json; print(json.load(sys.stdin)["info"]["status"])')" = "deployed"
+else
+	step "Déploiement de k8s/ dans le namespace $NS"
+	kubectl create namespace "$NS" >/dev/null
+	kubectl apply -n "$NS" -f k8s/
+fi
 check "l'application est prête (rollout)" kubectl rollout status -n "$NS" "$APP" --timeout=180s
+check "tous les réplicas sont prêts" \
+	test "$(kubectl get "$APP" -n "$NS" -o jsonpath='{.status.readyReplicas}')" = "$(kubectl get "$APP" -n "$NS" -o jsonpath='{.spec.replicas}')"
 
 # ---------- Accès par le LoadBalancer ----------
 step "Adresse externe du Service (fournie par minikube tunnel)"
@@ -200,8 +236,16 @@ step "Suppression du pod : Kubernetes doit le recréer"
 OLD_POD=$(kubectl get pod -n "$NS" -l app=olympic-games-app -o jsonpath='{.items[0].metadata.name}')
 kubectl delete pod -n "$NS" "$OLD_POD" >/dev/null
 check "l'application est de nouveau prête" kubectl rollout status -n "$NS" "$APP" --timeout=120s
-check "le pod a bien été remplacé par un nouveau" \
-	test "$(kubectl get pod -n "$NS" -l app=olympic-games-app --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')" != "$OLD_POD"
+# Avec plusieurs réplicas, un autre pod encore en place ne prouve rien : on attend que l'ANCIEN ait disparu.
+pod_gone() {
+	local i
+	for i in $(seq 1 30); do
+		kubectl get pod -n "$NS" "$OLD_POD" >/dev/null 2>&1 || return 0
+		sleep 2
+	done
+	return 1
+}
+check "l'ancien pod a bien disparu (remplacé par un nouveau)" pod_gone
 check "l'application répond de nouveau 200" wait_http_200 "$URL/"
 
 # ---------- Résultat ----------

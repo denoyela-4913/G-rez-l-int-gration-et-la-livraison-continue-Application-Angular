@@ -26,4 +26,28 @@ spec:
       - name: olympic-games-app
         image: {{ required "app.image est obligatoire (ex. ghcr.io/utilisateur/image:0.2.0) : utiliser -f values-dev.yaml ou --set app.image=..." .Values.app.image | quote }}
         ports:
-        - containerPort: {{ .Values.app.port }}
+        - name: http
+          containerPort: {{ .Values.app.port }}
+        {{- if .Values.app.probes.enabled }}
+        # Prêt : en cas d'échec, le pod est retiré du Service, sans être redémarré.
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.app.probes.path }}
+            port: http
+          {{- toYaml .Values.app.probes.readiness | nindent 10 }}
+        # Vivant : en cas d'échec, le conteneur est redémarré.
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.app.probes.path }}
+            port: http
+          {{- toYaml .Values.app.probes.liveness | nindent 10 }}
+        {{- end }}
+        {{- if .Values.app.preStopSeconds }}
+        # Pause avant l'arrêt d'un pod : au moment où Kubernetes arrête l'ancien pod lors d'une mise à jour, le Service
+        # n'a pas encore fini de le retirer de sa liste. Sans pause, les requêtes encore envoyées à ce pod échouent
+        # (coupure mesurée côté Java : environ 2 s). Pendant ces secondes, le pod continue de répondre.
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sleep", {{ .Values.app.preStopSeconds | quote }}]
+        {{- end }}

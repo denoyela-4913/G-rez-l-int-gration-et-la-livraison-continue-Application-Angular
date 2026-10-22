@@ -11,6 +11,25 @@ app:
   # (cas du paquet GHCR public). Le Secret doit exister dans le namespace avant l'installation.
   imagePullSecret: ""
   replicas: 1
+  # Pause (en secondes) avant l'arrêt d'un pod, pour laisser le Service le retirer de sa liste : évite la coupure
+  # lors d'une mise à jour. 0 : pas de pause. Doit rester inférieure au délai de grâce de Kubernetes (30 s).
+  preStopSeconds: 5
+  # Sondes de santé de l'application. enabled: false les supprime toutes (utile pour comparer ou déboguer).
+  # Pas de sonde de démarrage : Nginx démarre en moins d'une seconde.
+  probes:
+    enabled: true
+    # Route interrogée (HTTP, sur le port du conteneur).
+    path: /
+    # Prêt : en cas d'échec, le pod est retiré du Service, sans être redémarré.
+    readiness:
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+    # Vivant : en cas d'échec, le conteneur est redémarré (3 x 10 s = 30 s de tolérance).
+    liveness:
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
 
 service:
   type: LoadBalancer

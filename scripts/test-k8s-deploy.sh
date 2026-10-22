@@ -173,6 +173,11 @@ else
 	kubectl apply -n "$NS" -f k8s/
 fi
 check "l'application est prête (rollout)" kubectl rollout status -n "$NS" "$APP" --timeout=180s
+# Les sondes sont définies (on lit la configuration du Deployment) : sans elles, "prêt" voudrait seulement
+# dire "le conteneur a démarré".
+probe() { kubectl get "$APP" -n "$NS" -o jsonpath="{.spec.template.spec.containers[0].$1}"; }
+check "l'application a ses sondes de disponibilité et de vie" \
+	test -n "$(probe readinessProbe)" -a -n "$(probe livenessProbe)"
 check "tous les réplicas sont prêts" \
 	test "$(kubectl get "$APP" -n "$NS" -o jsonpath='{.status.readyReplicas}')" = "$(kubectl get "$APP" -n "$NS" -o jsonpath='{.spec.replicas}')"
 

@@ -19,4 +19,32 @@ spec:
         # nécessaire (il ne le serait que pour un registre privé).
         image: ghcr.io/denoyela-4913/oc-p04-angular-olympic-games-tracker:0.2.0
         ports:
-        - containerPort: 8080
+        - name: http
+          containerPort: 8080
+        # Prêt : tant qu'elle échoue, le pod est retiré du Service (aucune requête), sans être redémarré.
+        # Utile surtout avec plusieurs réplicas : lors d'une mise à jour, un nouveau pod ne reçoit du trafic
+        # qu'une fois Nginx prêt. Pas de startupProbe : Nginx démarre en moins d'une seconde.
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        # Vivant : si elle échoue 3 fois de suite (30 s), le conteneur est redémarré. Si Nginx s'arrête, le
+        # conteneur s'arrête et est déjà redémarré sans sonde ; celle-ci ne sert que si Nginx se BLOQUE sans
+        # s'arrêter (valeur limitée pour un site statique).
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        # Pause avant l'arrêt d'un pod : au moment où Kubernetes arrête l'ancien pod lors d'une mise à jour, le Service
+        # n'a pas encore fini de le retirer de sa liste. Sans pause, les requêtes encore envoyées à ce pod échouent
+        # (coupure mesurée côté Java : environ 2 s). Pendant ces 5 s, le pod continue de répondre.
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sleep", "5"]

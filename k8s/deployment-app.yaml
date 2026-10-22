@@ -14,7 +14,9 @@ spec:
     spec:
       containers:
       - name: olympic-games-app
-        # TODO: add the image of the application from the gitlab registry
+        # Image publiée par la CI sur GHCR. Le tag est une version précise (jamais "latest") : le
+        # déploiement est reproductible. Le paquet GHCR est public, donc aucun imagePullSecret n'est
+        # nécessaire (il ne le serait que pour un registre privé).
+        image: ghcr.io/denoyela-4913/oc-p04-angular-olympic-games-tracker:0.2.0
         ports:
         - containerPort: 8080
-      # TODO: define imagePullSecrets to use a docker-registry secret and authorize Kubenetes 

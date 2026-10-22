@@ -7,6 +7,8 @@ spec:
     app: olympic-games-app
   ports:
     - protocol: TCP
-      port: 80
+      # 8080 et non 80 : "minikube tunnel" ne publie un port inférieur à 1024 (privilégié) qu'avec sudo.
+      # Même port que le conteneur et que le Service du dépôt Java.
+      port: 8080
       targetPort: 8080
   type: LoadBalancer

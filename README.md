@@ -171,3 +171,71 @@ GITHUB_TOKEN=$(gh auth token) npx --yes -p semantic-release@25.0.9 \
 ```
 
 Il affiche la version qui serait créée (ou « no release »). Il doit être lancé depuis `main`.
+
+## Déploiement sur Kubernetes (Minikube) et Helm
+
+Deux façons de déployer l'application, qui donnent le même résultat en environnement de développement :
+
+| | Dossier | Quand l'utiliser |
+|---|---|---|
+| Manifestes | `k8s/` | déploiement direct : `kubectl apply -f k8s/` |
+| Chart Helm | `helm/olympic-games/` | plusieurs environnements (dev, staging) avec des valeurs différentes |
+
+Le rendu du chart avec `values-dev.yaml` est identique aux manifestes de `k8s/` (hors étiquettes).
+
+### Le chart Helm
+
+Le schéma des valeurs reprend celui de `values.tpl.yaml` (`app.image`, `app.port`, `app.imagePullSecret`),
+complété par `app.replicas` et `service.*`.
+
+| Valeur | `values-dev.yaml` | `values-staging.yaml` | Rôle |
+|---|---|---|---|
+| `app.image` | `...:0.2.0` | `...:0.2.0` | image complète, **tag compris** ; obligatoire (le chart refuse de s'installer sans) |
+| `app.replicas` | 1 | 2 | nombre de pods |
+| `service.port` | 80 | 8081 | port du Service sur la machine |
+| `app.imagePullSecret` | (vide) | (vide) | Secret de type docker-registry, pour un registre **privé** ; le paquet GHCR étant public, il n'est pas utilisé |
+
+Staging est sur le port **8081** pour que dev et staging puissent être installés et joignables en même
+temps : avec `minikube tunnel`, deux Services sur le même port se partagent le même port de la machine,
+et l'un masque l'autre.
+
+```bash
+helm install olympic helm/olympic-games -f helm/olympic-games/values-dev.yaml -n olympic-dev --create-namespace
+helm install olympic helm/olympic-games -f helm/olympic-games/values-staging.yaml -n olympic-staging --create-namespace
+helm list -A                                  # releases installées
+helm upgrade olympic helm/olympic-games -f helm/olympic-games/values-staging.yaml -n olympic-staging --set app.replicas=3
+helm history olympic -n olympic-staging       # révisions
+helm rollback olympic 1 -n olympic-staging    # retour à la révision 1
+helm uninstall olympic -n olympic-dev
+```
+
+Vérifier un chart sans rien installer : `helm lint helm/olympic-games -f helm/olympic-games/values-dev.yaml`
+(syntaxe) et `helm template olympic helm/olympic-games -f helm/olympic-games/values-dev.yaml` (rendu).
+
+### Mettre à jour la version déployée
+
+Le tag de l'image est écrit **à la main** dans `app.image` de chaque fichier de valeurs (et `appVersion` dans
+`Chart.yaml`, à titre informatif). Une release de l'application (semantic-release) publie une nouvelle image
+mais ne modifie pas ces fichiers : après une release, éditer `values-dev.yaml` (et `values-staging.yaml` quand
+on décide de promouvoir la version), puis `helm upgrade`. Tant que ce n'est pas fait, le cluster continue de
+faire tourner l'ancienne version.
+
+### Accès avec `minikube tunnel`
+
+Lancer `minikube tunnel` dans un autre terminal et le laisser ouvert. Le port 80 est **privilégié** (< 1024) :
+le tunnel demande le mot de passe `sudo` et il faut le saisir, sinon le Service reçoit une adresse mais rien
+ne répond (le mot de passe est redemandé quand le cache `sudo` expire). Un Ingress existant dans le cluster
+est lui aussi publié sur les ports 80 et 443 : tant que le Service de l'application existe sur le port 80, il
+le masque.
+
+### Tester le déploiement
+
+```bash
+scripts/test-k8s-deploy.sh                    # manifestes de k8s/
+scripts/test-k8s-deploy.sh --helm dev         # chart Helm, environnement dev (port 80, sudo)
+scripts/test-k8s-deploy.sh --helm staging     # chart Helm, environnement staging (port 8081)
+```
+
+Le script vérifie les prérequis (affiche les commandes à lancer s'il en manque), déploie dans un namespace
+jetable, teste l'application par le Service et la suppression d'un pod, puis supprime le namespace
+(`--keep` le conserve, `--pause` attend Entrée entre les étapes).

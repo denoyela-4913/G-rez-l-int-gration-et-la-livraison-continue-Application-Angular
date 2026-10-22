@@ -19,7 +19,7 @@ npm-debug.log
 
 # Ne servent pas à construire l'image
 k8s
-helm
+charts
 BACKLOG.md
 Dockerfile
 .dockerignore

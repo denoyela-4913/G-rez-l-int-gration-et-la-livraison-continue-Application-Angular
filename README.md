@@ -179,7 +179,7 @@ Deux façons de déployer l'application, qui donnent le même résultat en envir
 | | Dossier | Quand l'utiliser |
 |---|---|---|
 | Manifestes | `k8s/` | déploiement direct : `kubectl apply -f k8s/` |
-| Chart Helm | `helm/olympic-games/` | plusieurs environnements (dev, staging) avec des valeurs différentes |
+| Chart Helm | `charts/olympic-games/` | plusieurs environnements (dev, staging) avec des valeurs différentes |
 
 Le rendu du chart avec `values-dev.yaml` est identique aux manifestes de `k8s/` (hors étiquettes).
 
@@ -200,17 +200,17 @@ temps : avec `minikube tunnel`, deux Services sur le même port se partagent le 
 et l'un masque l'autre.
 
 ```bash
-helm install olympic helm/olympic-games -f helm/olympic-games/values-dev.yaml -n olympic-dev --create-namespace
-helm install olympic helm/olympic-games -f helm/olympic-games/values-staging.yaml -n olympic-staging --create-namespace
+helm install olympic charts/olympic-games -f charts/olympic-games/values-dev.yaml -n olympic-dev --create-namespace
+helm install olympic charts/olympic-games -f charts/olympic-games/values-staging.yaml -n olympic-staging --create-namespace
 helm list -A                                  # releases installées
-helm upgrade olympic helm/olympic-games -f helm/olympic-games/values-staging.yaml -n olympic-staging --set app.replicas=3
+helm upgrade olympic charts/olympic-games -f charts/olympic-games/values-staging.yaml -n olympic-staging --set app.replicas=3
 helm history olympic -n olympic-staging       # révisions
 helm rollback olympic 1 -n olympic-staging    # retour à la révision 1
 helm uninstall olympic -n olympic-dev
 ```
 
-Vérifier un chart sans rien installer : `helm lint helm/olympic-games -f helm/olympic-games/values-dev.yaml`
-(syntaxe) et `helm template olympic helm/olympic-games -f helm/olympic-games/values-dev.yaml` (rendu).
+Vérifier un chart sans rien installer : `helm lint charts/olympic-games -f charts/olympic-games/values-dev.yaml`
+(syntaxe) et `helm template olympic charts/olympic-games -f charts/olympic-games/values-dev.yaml` (rendu).
 
 ### Mettre à jour la version déployée
 

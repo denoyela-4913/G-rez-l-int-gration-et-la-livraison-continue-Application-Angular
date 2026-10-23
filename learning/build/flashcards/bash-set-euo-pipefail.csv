@@ -1,0 +1,18 @@
+#separator:comma
+#html:true
+#notetype:Basic
+#deck:OlympicTracker::bash-set-euo-pipefail
+Que fait <code>set -euo pipefail</code> en début de script Bash ?,"Il rend le script strict : arrêt à la première commande en échec (<code>-e</code>), erreur sur variable non définie (<code>-u</code>) et échec d'un pipe si l'un de ses maillons échoue (<code>-o pipefail</code>)."
+Que fait l'option <code>-e</code> (errexit) ?,"Le script s'arrête dès qu'une commande renvoie un code de sortie différent de 0, avec ce code."
+Quelles commandes ne déclenchent pas l'arrêt de <code>set -e</code> ?,"Celles qui sont testées : dans un <code>if</code> ou un <code>while</code>, ou suivies de <code>&amp;&amp;</code> / <code>||</code>. L'échec y est prévu par le script."
+Que fait l'option <code>-u</code> (nounset) et quel risque évite-t-elle ?,"Elle transforme l'usage d'une variable non définie en erreur. Sans elle, la variable vaut <code>""""</code> : <code>rm -rf ""$DOSSIER/""</code> deviendrait <code>rm -rf ""/""</code>."
+Comment tolérer une variable absente avec <code>set -u</code> ?,"Avec une valeur par défaut : <code>${VAR:-défaut}</code>, ou <code>${VAR:-}</code> pour « vide ». Exemple dans <code>helm-deploy.sh</code> : <code>ACTION=${1:-}</code>."
+"Quel est le code de sortie d'un pipe par défaut, sans <code>pipefail</code> ?",Celui de la dernière commande seulement. <code>cat fichier_inexistant | sort</code> renvoie 0 car <code>sort</code> réussit.
+Que change <code>-o pipefail</code> ?,"Le pipe renvoie le code du dernier maillon en échec : <code>cat fichier_inexistant | sort</code> renvoie alors 1, et <code>-e</code> peut s'appliquer."
+Pourquoi <code>-e</code> et <code>pipefail</code> vont-ils ensemble ?,"Sans <code>pipefail</code>, une erreur au milieu d'un pipe est invisible (le code vient du dernier maillon), donc <code>-e</code> n'a rien à intercepter."
+Comment ignorer volontairement l'échec d'une commande avec <code>set -e</code> ?,"<code>commande || true</code>, ou la placer dans un <code>if</code>. Exemple : <code>grep</code> renvoie 1 quand il ne trouve rien, ce qui n'est pas une panne."
+<code>set -euo pipefail</code> garantit-il qu'aucune erreur ne passe ?,"Non. <code>-e</code> est ignoré dans les contextes testés (<code>if</code>, <code>&amp;&amp;</code>, <code>||</code>), l'échec d'une substitution <code>$(...)</code> passée en argument n'est pas détecté, et les erreurs de logique restent à tester."
+"Pourquoi <code>test-k8s-deploy.sh</code> écrit-il <code>kubectl delete namespace ""$NS"" ... || true</code> dans <code>cleanup</code> ?","Le nettoyage, branché par <code>trap cleanup EXIT</code>, doit tolérer un échec (namespace déjà supprimé) : il ne doit ni masquer l'erreur d'origine ni s'interrompre sous <code>set -e</code>."
+"Pourquoi <code>helm-deploy.sh</code> écrit-il <code>${ACTION_ARGS[@]+""${ACTION_ARGS[@]}""}</code> ?","Pour <code>upgrade</code>, le tableau <code>ACTION_ARGS</code> est vide. Avec <code>-u</code>, les anciens Bash traitent un tableau vide comme non défini ; cette écriture ne le développe que s'il est défini."
+Quels scripts de DataShare (dépôt Angular) utilisent <code>set -euo pipefail</code> ?,"<code>scripts/helm-deploy.sh</code>, <code>scripts/test-ghcr-image.sh</code>, <code>scripts/test-k8s-deploy.sh</code>, <code>update_version.sh</code> et <code>learning/build.sh</code> (le hook <code>.githooks/pre-commit</code> aussi)."
+Que signifie <code>EXIT</code> dans <code>trap cleanup EXIT</code> ?,"Le signal pseudo <code>EXIT</code> : <code>cleanup</code> s'exécute à la sortie du script, qu'elle soit normale ou causée par une erreur sous <code>set -e</code>."

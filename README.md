@@ -191,7 +191,7 @@ complété par `app.replicas` et `service.*`.
 | Valeur | `values-dev.yaml` | `values-staging.yaml` | Rôle |
 |---|---|---|---|
 | `app.image` | `...:X.Y.Z`, **suit chaque release** (CI) | `...:X.Y.Z`, **promu à la main** | image complète, **tag compris** ; obligatoire (le chart refuse de s'installer sans) |
-| `app.replicas` | 1 | 2 | nombre de pods |
+| `app.replicas` | 2 | 3 | nombre de pods |
 | `service.port` | 80 | 8081 | port du Service sur la machine |
 | `app.imagePullSecret` | (vide) | (vide) | Secret de type docker-registry, pour un registre **privé** ; le paquet GHCR étant public, il n'est pas utilisé |
 
@@ -206,7 +206,7 @@ et l'un masque l'autre.
 helm install olympic charts/olympic-games -f charts/olympic-games/values-dev.yaml -n olympic-dev --create-namespace
 helm install olympic charts/olympic-games -f charts/olympic-games/values-staging.yaml -n olympic-staging --create-namespace
 helm list -A                                  # releases installées
-helm upgrade olympic charts/olympic-games -f charts/olympic-games/values-staging.yaml -n olympic-staging --set app.replicas=3
+helm upgrade olympic charts/olympic-games -f charts/olympic-games/values-staging.yaml -n olympic-staging --set app.replicas=4
 helm history olympic -n olympic-staging       # révisions
 helm rollback olympic 1 -n olympic-staging    # retour à la révision 1
 helm uninstall olympic -n olympic-dev

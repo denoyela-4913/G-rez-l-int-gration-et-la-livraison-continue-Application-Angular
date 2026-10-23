@@ -3,7 +3,7 @@
 app:
   # Tag écrit à la main, indépendant de celui de dev : staging ne change de version que sur décision.
   image: ghcr.io/denoyela-4913/oc-p04-angular-olympic-games-tracker:0.2.0
-  replicas: 2
+  replicas: 3
 
 service:
   # 8081 et non 80 : dev et staging peuvent ainsi être installés ET joignables en même temps. Avec

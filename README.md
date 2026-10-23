@@ -229,6 +229,10 @@ l'environnement :
   que sur décision. Pour promouvoir, recopier dans `values-staging.yaml` un tag déjà passé en dev, puis
   `helm upgrade`.
 
+Les commandes Helm sont regroupées dans `scripts/helm-deploy.sh <install|upgrade> <dev|staging>`, avec des raccourcis
+(`scripts/install-dev.sh`, `upgrade-dev.sh`, `install-staging.sh`, `upgrade-staging.sh`). `install` crée le namespace
+(`olympic-dev` ou `olympic-staging`) ; `upgrade` applique le nouveau tag à une release déjà installée.
+
 ### Sondes de santé
 
 | Sonde | Test | Si elle échoue |

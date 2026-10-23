@@ -190,10 +190,13 @@ complété par `app.replicas` et `service.*`.
 
 | Valeur | `values-dev.yaml` | `values-staging.yaml` | Rôle |
 |---|---|---|---|
-| `app.image` | `...:0.2.0` | `...:0.2.0` | image complète, **tag compris** ; obligatoire (le chart refuse de s'installer sans) |
+| `app.image` | `...:X.Y.Z`, **suit chaque release** (CI) | `...:X.Y.Z`, **promu à la main** | image complète, **tag compris** ; obligatoire (le chart refuse de s'installer sans) |
 | `app.replicas` | 1 | 2 | nombre de pods |
 | `service.port` | 80 | 8081 | port du Service sur la machine |
 | `app.imagePullSecret` | (vide) | (vide) | Secret de type docker-registry, pour un registre **privé** ; le paquet GHCR étant public, il n'est pas utilisé |
+
+Les tags des deux fichiers peuvent donc différer : dev reçoit la dernière version publiée, staging garde la
+version qu'on y a promue. Le détail est dans « Mettre à jour la version déployée » plus bas.
 
 Staging est sur le port **8081** pour que dev et staging puissent être installés et joignables en même
 temps : avec `minikube tunnel`, deux Services sur le même port se partagent le même port de la machine,

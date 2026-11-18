@@ -54,7 +54,7 @@ jobs:
       - name: Publier le rapport de tests
         if: always()
         # Action tierce : fixée sur le SHA du commit (tag v6.6.1), car un tag peut être déplacé.
-        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
+        uses: mikepenz/action-junit-report@a16be3a69023e9bd7e748ede768b3282ea7b30ce # v6.7.1
         with:
           report_paths: test-results/xml/*.xml # JUnit XML (Gradle et Karma)
           check_name: Rapport de tests
